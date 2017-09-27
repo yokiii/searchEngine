@@ -1,3 +1,9 @@
+import java.net.*;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.io.Reader.*;
+
+
 public class MainEngine{
   
   private static String engineKey;
@@ -8,6 +14,7 @@ public class MainEngine{
   private static String rawResult;
   
   private final int top = 10;
+  
   
   public static void main(String[] args) throws Exception{
     //No.1 ---------------------------------parse argument
@@ -48,4 +55,27 @@ public class MainEngine{
         System.exit(1);
         }
         
+}
+  }
+  
+  // return the search query result
+  public void Search(String engineKey, String apiKey, int top, String[] query) throw IOException{
+       URL url = new URL ("https://www.googleapis.com/customsearch/v1?key=" +apiKey+ "&amp;cx=" +engineKey+ "&amp;q=" +query+"&amp;alt=json");
+       HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+       conn.setRequestMethod("GET");
+       conn.setRequestProperty("Accept", "application/json");
+       BufferedReader br = new BufferedReader(new InputStreamReader ( ( conn.getInputStream() ) ) );
+       GResults results = new Gson().fromJson(br, GResults.class);
+       conn.disconnect();
+  }
+  
+  // return the check precision result
+  public boolean checkPrecision(double realPrecision){
+    if(realPrecision == 0 || realPrecision >= precision) return true;
+    else return false;
+  }
+  
+  //parse the query and collect user feedback and get the real precision 
+  public double Feedback(){
+  }
 }
