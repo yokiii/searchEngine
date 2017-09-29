@@ -1,24 +1,35 @@
-import java.net.*;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.io.Reader.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson.JacksonFactory;
+import com.google.api.services.customsearch.Customsearch;
+import com.google.api.services.customsearch.model.Result;
+import com.google.api.services.customsearch.model.Search;
 
 
 public class MainEngine{
   
   private static String engineKey;
   private static String apiKey;
-  private static double precision;
-  private static double 
-  private static String[] query;
-  private static String rawResult;
+  private static double precision; 
+  private static String query;
+  private static List<List<String>> rawResult =new ArrayList<List<String>>();
   
-  private final int top = 10;
+  private final static int top = 10;
   
   
-  public static void main(String[] args) throws Exception{
+  public static void main(String[] args) throws Exception {
+	  
     //No.1 ---------------------------------parse argument
-    if(arg.length != 4){
+    if(args.length != 4){
       System.err.println("Usage: MainEngine <EngineKey> <ApiKey> <query> <precision>");
       System.exit(1);   
     }
@@ -27,7 +38,8 @@ public class MainEngine{
     // API Key
     apiKey = args[1];
     //Query
-    query = args[2].split(" ");
+    query = args[2];
+    
     //Preicsion
     precision = Double.parseDouble(args[3]);
     if(precision < 0 || precision > 1){
@@ -39,43 +51,112 @@ public class MainEngine{
     //No.2 ----------------------------------Search && Parse
     
     //---------------------------------------------------
+    
       Search(engineKey, apiKey, top, query);  //return rawResult
       double realPrecision=Feedback(); //return double real prescision by user;
       if(checkPrecision(realPrecision)){
-        System.println("reached ideal precision");
+        System.out.println("----------------------reached ideal precision----------------------");
         System.exit(1);
       }
+      else{
+    	  System.out.println(realPrecision);
+      }
       
-        while(true){
+      while(true){
         query = expand(query);
         Search(engineKey, apiKey, top, query);
-        Feedback();
+        realPrecision = Feedback();
         if(checkPrecision(realPrecision)){
-        System.println("reached ideal precision");
+        System.out.println("reached ideal precision");
         System.exit(1);
         }
+       
+        
         
 }
+ 
+
   }
   
-  // return the search query result
-  public void Search(String engineKey, String apiKey, int top, String[] query) throw IOException{
-       URL url = new URL ("https://www.googleapis.com/customsearch/v1?key=" +apiKey+ "&amp;cx=" +engineKey+ "&amp;q=" +query+"&amp;alt=json");
-       HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-       conn.setRequestMethod("GET");
-       conn.setRequestProperty("Accept", "application/json");
-       BufferedReader br = new BufferedReader(new InputStreamReader ( ( conn.getInputStream() ) ) );
-       GResults results = new Gson().fromJson(br, GResults.class);
-       conn.disconnect();
-  }
+  // return the search query result (already finished parsing)
+  public static void Search(String engineKey, String apiKey, int top, String query) throws IOException{
+ 
+  	
+  	HttpTransport httpTransport = new NetHttpTransport();
+      JsonFactory jsonFactory = new JacksonFactory();
+      Customsearch customsearch = new Customsearch(httpTransport, jsonFactory,null);
+      List<Result> resultList = null;
+      Customsearch.Cse.List list = customsearch.cse().list(query);
+      list.setKey(apiKey);
+      list.setCx(engineKey);
+      Search results = list.execute();
+      resultList = results.getItems();
+          if(resultList != null && resultList.size() > 0){
+              for(Result result: resultList){
+              	List<String> rst = new ArrayList<String>();
+                  rst.add(result.getHtmlTitle());
+                  rst.add(result.getFormattedUrl());
+                  rst.add(result.getHtmlSnippet());
+                  rawResult.add(rst);
+             
+                  //System.out.println(result.getHtmlSnippet());
+                 // System.out.println("----------------------------------------");
+              }
+       }
+      }
+  
+  
   
   // return the check precision result
-  public boolean checkPrecision(double realPrecision){
+  public static boolean checkPrecision(double realPrecision){
     if(realPrecision == 0 || realPrecision >= precision) return true;
     else return false;
   }
   
-  //parse the query and collect user feedback and get the real precision 
-  public double Feedback(){
+  //collect user feedback and get the real precision 
+  public static double Feedback(){
+	  int count = 0;
+	  BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+	  for(int i = 0; i< rawResult.size(); i++){
+		  	System.out.printf("Result %d\n", i + 1);
+			System.out.println("-----------------------------");
+			System.out.printf("Title: %s\n", rawResult.get(i).get(0));
+			System.out.printf("Display Url: %s\n", rawResult.get(i).get(1));
+			System.out.printf("Description: %s\n", rawResult.get(i).get(2));
+			System.out.print("Do you think is relevant or not? (Y/N) :");
+			while(true){
+			try {
+				String peranswer = br.readLine();
+				if(peranswer.equalsIgnoreCase("Y")){
+					
+					rawResult.get(i).add("True");
+					count++;
+					break;
+				} 
+				else if(peranswer.equalsIgnoreCase("N")){
+					rawResult.get(i).add("False");
+					break;
+				}
+				else{
+					System.out.println("Please input a valid response");
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.err.println("Please Input valid response. ");
+			}
+			}
+			
+		  
+	  }
+	  return (double) count / top;
   }
+  
+  
+  public static String expand(String query){
+	  return new String();
+	  
+  }
+  
+  
 }
