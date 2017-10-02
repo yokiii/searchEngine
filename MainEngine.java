@@ -153,10 +153,44 @@ public class MainEngine{
   }
   
   
-  public static String expand(String query){
+  public static String expand(String oldquery){
+	  String mergingtitle = "";
+	  String mergingcontent = "";
+	  //---------------- relevant word----------------
+	  // retrieve the passed title and description
+	  for(int i = 0; i< rawResult.size(); i++){
+		  if(rawResult.get(i).get(3) == "True"){
+			  mergingtitle+= rawResult.get(i).get(0) + ";";
+			  mergingcontent += rawResult.get(i).get(2)+";";
+		  }
+	  }
+	  //initialize stopword list
+	  RAMDirectory directory = new RAMDirectory();
+	  try {
+		IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(
+		            Version.LUCENE_36, new StandardAnalyzer(Version.LUCENE_36)));
+		Document doc = new Document();
+		doc.add(new Field("fieldname",mergingtitle,Field.Store.YES, Field.Index.ANALYZED));
+		writer.addDocument(doc);
+		writer.close();
+	} catch (CorruptIndexException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (LockObtainFailedException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+	  
+	  
+	  
+	  
+	  // find dif 
+	  // 
 	  return new String();
 	  
   }
-  
   
 }
