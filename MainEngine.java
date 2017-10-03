@@ -1,10 +1,20 @@
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map.Entry;
+import java.util.Scanner;
+import java.util.Set;
+
+
 
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -21,7 +31,7 @@ public class MainEngine{
   private static String apiKey;
   private static double precision; 
   private static String query;
-  private static List<List<String>> rawResult =new ArrayList<List<String>>();
+  
   
   private final static int top = 10;
   
@@ -52,8 +62,8 @@ public class MainEngine{
     
     //---------------------------------------------------
     
-      Search(engineKey, apiKey, top, query);  //return rawResult
-      double realPrecision=Feedback(); //return double real prescision by user;
+    List<List<String>> rawResult = Search(engineKey, apiKey, top, query);  //return rawResult
+    double realPrecision=Feedback(rawResult); //return double real prescision by user;
       if(checkPrecision(realPrecision)){
         System.out.println("----------------------reached ideal precision----------------------");
         System.exit(1);
@@ -63,9 +73,9 @@ public class MainEngine{
       }
       
       while(true){
-        query = expand(query);
-        Search(engineKey, apiKey, top, query);
-        realPrecision = Feedback();
+        String newquery = expand(query, rawResult);
+        rawResult=Search(engineKey, apiKey, top, newquery);
+        realPrecision = Feedback(rawResult);
         if(checkPrecision(realPrecision)){
         System.out.println("reached ideal precision");
         System.exit(1);
@@ -79,9 +89,9 @@ public class MainEngine{
   }
   
   // return the search query result (already finished parsing)
-  public static void Search(String engineKey, String apiKey, int top, String query) throws IOException{
+  public static List<List<String>> Search(String engineKey, String apiKey, int top, String query) throws IOException{
  
-  	
+	List<List<String>> rawResult =new ArrayList<List<String>>();
   	HttpTransport httpTransport = new NetHttpTransport();
       JsonFactory jsonFactory = new JacksonFactory();
       Customsearch customsearch = new Customsearch(httpTransport, jsonFactory,null);
@@ -103,6 +113,7 @@ public class MainEngine{
                  // System.out.println("----------------------------------------");
               }
        }
+          return rawResult;
       }
   
   
@@ -114,7 +125,7 @@ public class MainEngine{
   }
   
   //collect user feedback and get the real precision 
-  public static double Feedback(){
+  public static double Feedback(List<List<String>> rawResult){
 	  int count = 0;
 	  BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 	  for(int i = 0; i< rawResult.size(); i++){
@@ -153,49 +164,98 @@ public class MainEngine{
   }
   
   
-  public static String expand(String oldquery) throws Exception{
-	  String mergingtitle = "";
-	  String mergingcontent = "";
+  public static String expand(String querry,List<List<String>> rawResult) throws Exception{
+	  List<String[]> mergingtitle = new ArrayList<String[]>();
+	  List<String[]> mergingcontent = new ArrayList<String[]>();
+
 	  //---------------- relevant word----------------
 	  // retrieve the passed title and description
 	  for(int i = 0; i< rawResult.size(); i++){
 		  if(rawResult.get(i).get(3) == "True"){
-			  mergingtitle+= rawResult.get(i).get(0) + ";";
-			  mergingcontent += rawResult.get(i).get(2)+";";
+			  String[] title = rawResult.get(i).get(0).split(" ");
+			  mergingtitle.add(title);
+			  String[] content = rawResult.get(i).get(2).split(" ");
+			  mergingcontent.add(content);
 		  }
 	  }
 	  HashSet<String> h = transfer();
-	  if(h.contains("apple")){}
-	  /*
-	  //initialize stopword list
-	  RAMDirectory directory = new RAMDirectory();
-	  try {
-		IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(
-		            Version.LUCENE_36, new StandardAnalyzer(Version.LUCENE_36)));
-		Document doc = new Document();
-		doc.add(new Field("fieldname",mergingtitle,Field.Store.YES, Field.Index.ANALYZED));
-		writer.addDocument(doc);
-		writer.close();
-	} catch (CorruptIndexException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	} catch (LockObtainFailedException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	} catch (IOException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	}
-	*/
 	  
-	  
-	  
-	  
-	  // find dif 
-	  // 
-	  return new String();
+	  Double entryInverse = (double) (1/rawResult.size());
+	  HashMap<String, Double> titleNew = new HashMap<String, Double>();
+		for (String[] t : mergingtitle) {
+				for(String s: t){
+					if (h.contains(s))
+						continue;
+					else if (titleNew.containsKey(s)) {
+						double freq = titleNew.get(s) +entryInverse;
+						titleNew.put(s, freq);
+					}
+					else{
+						titleNew.put(s,entryInverse);
+					}		
+				}
+		}
+		 //HashMap<String, Integer> contentNew = new HashMap<String, Integer>();
+		
+		
+		 for (String[] t : mergingcontent) {
+				for(String s: t){
+					if (h.contains(s))
+						continue;
+					else if (titleNew.containsKey(s)) {
+						double freq = titleNew.get(s) +entryInverse;
+						titleNew.put(s, freq);
+					}
+					else{
+						titleNew.put(s,entryInverse);
+					}	
+				}
+		 }
+		 String[] queryModify = query.split(" ");
+	        for(String s: queryModify){
+				if (h.contains(s))
+					continue;
+				else if (titleNew.containsKey(s)) {
+					double freq = titleNew.get(s) +1;
+					titleNew.put(s, freq);
+				}
+				else{
+					titleNew.put(s,1.0);
+				}	
+	        }
+		 Set<Entry<String, Double>> entries = titleNew.entrySet();
+		 Comparator<Entry<String, Double>> valueComparator = new Comparator<Entry<String, Double>>() {
+
+		@Override
+		public int compare(Entry<String, Double> o1, Entry<String, Double> o2) {
+			Double v1 = o1.getValue(); 
+			Double v2 = o2.getValue();
+			return v1.compareTo(v2);
+		} 
+	   };
+        List<Entry<String, Double>> listOfEntries = new ArrayList<Entry<String, Double>>(entries);
+        Collections.sort(listOfEntries, valueComparator);
+        List<String> qReset = new ArrayList<String>();
+        int qSize=5;
+        if(query.length()>5){
+        	qSize=10;
+        }
+        for(int i=listOfEntries.size()-1; i>=listOfEntries.size()-qSize;i--){
+        	qReset.add(listOfEntries.get(i).getKey());
+        }
+        StringBuilder sb = new StringBuilder();
+        for(String s: qReset){
+        	sb.append(s);
+        	sb.append(" ");
+        }
+        
+      // refresh the rawresult
+      rawResult.clear();
+      System.out.println(sb.toString());
+	  return sb.toString();
 	  
   }
+  
   
   public static HashSet<String> transfer() throws Exception{
 	  Scanner s = new Scanner(new File("src/stop.txt"));
@@ -209,9 +269,12 @@ public class MainEngine{
 		 for(int i = 0;i<l.size();i++){
 			 h.add(l.get(i));
 		 }
+		 // punctuation
 		 return h;
 	  
   }
+  
+
   
   
 }
