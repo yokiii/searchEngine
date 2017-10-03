@@ -153,7 +153,7 @@ public class MainEngine{
   }
   
   
-  public static String expand(String oldquery){
+  public static String expand(String oldquery) throws Exception{
 	  String mergingtitle = "";
 	  String mergingcontent = "";
 	  //---------------- relevant word----------------
@@ -164,6 +164,9 @@ public class MainEngine{
 			  mergingcontent += rawResult.get(i).get(2)+";";
 		  }
 	  }
+	  HashSet<String> h = transfer();
+	  if(h.contains("apple")){}
+	  /*
 	  //initialize stopword list
 	  RAMDirectory directory = new RAMDirectory();
 	  try {
@@ -183,6 +186,7 @@ public class MainEngine{
 		// TODO Auto-generated catch block
 		e.printStackTrace();
 	}
+	*/
 	  
 	  
 	  
@@ -192,5 +196,22 @@ public class MainEngine{
 	  return new String();
 	  
   }
+  
+  public static HashSet<String> transfer() throws Exception{
+	  Scanner s = new Scanner(new File("src/stop.txt"));
+		 List<String> l = new ArrayList<String>();
+		 while (s.hasNext()){
+			 l.add(s.next());
+		 }
+		 s.close();
+		 
+		 HashSet<String> h = new HashSet<String>();
+		 for(int i = 0;i<l.size();i++){
+			 h.add(l.get(i));
+		 }
+		 return h;
+	  
+  }
+  
   
 }
