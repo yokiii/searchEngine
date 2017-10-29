@@ -121,6 +121,7 @@ public class ISE {
 		System.out.println(plainTextResult.get(j));
 		}
 		*/
+		
 		//Test of String input
 		Properties props = new Properties();
 		props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner");
@@ -134,7 +135,7 @@ public class ISE {
 		RelationExtractorAnnotator rew = new RelationExtractorAnnotator(props1);
 		
 		
-		for(int j=0; j<plainTextResult.size();j++ ){
+		/*for(int j=0; j<plainTextResult.size();j++ ){
 			String text = plainTextResult.get(j);
 			
 			//first pipeline
@@ -147,12 +148,12 @@ public class ISE {
 						String ner = token.get(NamedEntityTagAnnotation.class);
 						if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
 							firstPipe.add(s.get(CoreAnnotations.TextAnnotation.class));	
-							/*
+							
 							System.out.println("For sentence "
 					                  + token.get(CoreAnnotations.TextAnnotation.class));
 					           System.out.println("Relation "
 					                    + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
-					                    */
+					                    
 							break;	
 						}
 				  }
@@ -162,11 +163,11 @@ public class ISE {
 				continue;
 				
 			}else{
-				/*
+				
 				for(int i = 0; i<firstPipe.size(); i++){
 					System.out.println(firstPipe.get(i));
 				}
-				*/
+				
 			
 			//second pipeline
 				List<List<RelationMention>> secondPipe = new ArrayList<>();
@@ -175,20 +176,25 @@ public class ISE {
 					
 				
 					try{
+						//String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
 						Annotation document2 = new Annotation(str);
 						pipeline2.annotate(document2);	
 						rew.annotate(document2);
 						for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
 							System.out.println("For sentence " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
-							List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
-							for(RelationMention rl: rls){
-						          System.out.println(rl.toString());
-						        }
-							secondPipe.add(rls);
-						}
+							for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
+								String ner = token.get(NamedEntityTagAnnotation.class);
+								if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
+							
+									List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
+									secondPipe.add(rls);
+								}
+							}
+						}		
 					}catch(Exception e){
 						System.out.println("Something wrong !!!!");
 					}
+					System.out.println(secondPipe.size());
 					
 						//Set<RelationMention> uniqueRelationMentions = new HashSet<>(relationMentions);
 					    //secondPipe.add(uniqueRelationMentions);
@@ -203,6 +209,37 @@ public class ISE {
 
 			}
 				
+		}*/
+		
+		// For Debug Only
+		List<List<RelationMention>> secondPipe = new ArrayList<>();
+		try{
+			String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
+			Annotation document2 = new Annotation(sentence);
+			pipeline2.annotate(document2);	
+			rew.annotate(document2);
+			for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
+				System.out.println("For sentence " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
+				for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
+					String ner = token.get(NamedEntityTagAnnotation.class);
+					if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
+				
+						List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
+						secondPipe.add(rls);
+					}
+				}
+			}		
+		}catch(Exception e){
+			System.out.println("Something wrong !!!!");
+		}
+		for(int i= 0; i<secondPipe.size(); i++){
+			List<RelationMention> sub = secondPipe.get(i);
+			System.out.println(sub.size());
+			//for(RelationMention rl: sub){
+				//	System.out.println(rl.toString());
+				//}
+			
+			
 		}
 
 	
