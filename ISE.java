@@ -1,3 +1,5 @@
+package adbProject2;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,6 +21,7 @@ import com.google.api.services.customsearch.Customsearch;
 import com.google.api.services.customsearch.model.Result;
 import com.google.api.services.customsearch.model.Search;
 import edu.stanford.nlp.*;
+import edu.stanford.nlp.ie.machinereading.structure.EntityMention;
 import edu.stanford.nlp.ie.machinereading.structure.MachineReadingAnnotations;
 import edu.stanford.nlp.ie.machinereading.structure.MachineReadingAnnotations.RelationMentionsAnnotation;
 import edu.stanford.nlp.ie.machinereading.structure.RelationMention;
@@ -30,6 +33,7 @@ import edu.stanford.nlp.naturalli.NaturalLogicAnnotations;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.RelationExtractorAnnotator;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
+import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.trees.TreeCoreAnnotations.TreeAnnotation;
 import edu.stanford.nlp.util.CoreMap;
@@ -99,6 +103,8 @@ public class ISE {
 		
 		// Obtain top-10 Webpages for query q
 		ArrayList<String> urlResult = Search(engineKey, apiKey, 10, q);
+		ArrayList<String> url = new ArrayList<String>();
+
 		for(int i = 0; i< urlResult.size(); i++){
 			System.out.println(urlResult.get(i));
 		}
@@ -109,6 +115,7 @@ public class ISE {
 			Document doc = Jsoup.connect(urlResult.get(i)).timeout(1000).get();
 			String text = doc.body().text();  /// Mark : Body or Text
 			plainTextResult.add(text);
+			url.add(urlResult.get(i));
 			}catch (IOException e){
 				System.out.println(urlResult.get(i) + "cannot be extracted");
 				continue;
@@ -133,11 +140,13 @@ public class ISE {
 		props1.setProperty("ner.useSUTime", "0");
 		StanfordCoreNLP pipeline2 = new StanfordCoreNLP(props1);
 		RelationExtractorAnnotator rew = new RelationExtractorAnnotator(props1);
+		List<RelationMention> secondPipe = new ArrayList<RelationMention>();
 		
-		
-		/*for(int j=0; j<plainTextResult.size();j++ ){
+		for(int j=0; j<plainTextResult.size();j++ ){
 			String text = plainTextResult.get(j);
-			
+			System.out.println("Processing:"+url.get(j));
+			int count =0;
+			int countTotal=0;
 			//first pipeline
 			List<String> firstPipe = new ArrayList<String>();
 			Annotation document1 = new Annotation(text);
@@ -146,21 +155,20 @@ public class ISE {
 			for (CoreMap s : document1.get(CoreAnnotations.SentencesAnnotation.class)) {
 				for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
 						String ner = token.get(NamedEntityTagAnnotation.class);
+						System.out.println("For sentence "
+				                  + token.get(CoreAnnotations.TextAnnotation.class));
+				           System.out.println("Relation "
+				                   + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
 						if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
 							firstPipe.add(s.get(CoreAnnotations.TextAnnotation.class));	
-							
-							System.out.println("For sentence "
-					                  + token.get(CoreAnnotations.TextAnnotation.class));
-					           System.out.println("Relation "
-					                    + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
-					                    
+							System.out.println("satisfy entity requirement");      
 							break;	
 						}
 				  }
 			}
 			
 			if(firstPipe == null || firstPipe.size() == 0){
-				continue;
+				System.out.println("empty pipe");
 				
 			}else{
 				
@@ -170,31 +178,38 @@ public class ISE {
 				
 			
 			//second pipeline
-				List<List<RelationMention>> secondPipe = new ArrayList<>();
-				//List<Set<RelationMention>> secondPipe = new ArrayList<>();
 				for(String str: firstPipe){
-					
-				
 					try{
-						//String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
-						Annotation document2 = new Annotation(str);
+						String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
+						Annotation document2 = new Annotation(sentence);
 						pipeline2.annotate(document2);	
 						rew.annotate(document2);
 						for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
-							System.out.println("For sentence " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
-							for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
-								String ner = token.get(NamedEntityTagAnnotation.class);
-								if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
-							
-									List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
-									secondPipe.add(rls);
+							List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
+							for(RelationMention relation: rls){
+								if(relation.getType().equalsIgnoreCase(type)){
+									Counter<String> probs = relation.getTypeProbabilities();
+									Double confidence = probs.getCount(type);
+									if(confidence>=0){
+										System.out.println("=============EXTRACT RELATION===========");
+										System.out.println("SENTENCE: " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
+										List<EntityMention> rst = relation.getEntityMentionArgs();
+										for(EntityMention en: rst){
+											System.out.println("ENTITYTYPE:"+en.getType());
+											System.out.println("ENTITYVALUE:"+en.getValue());
+										}
+										System.out.println("=============END OF RELATION DESC===========");
+										secondPipe.add(relation);
+										count++;
+									}
 								}
 							}
-						}		
+						}
+			
 					}catch(Exception e){
 						System.out.println("Something wrong !!!!");
 					}
-					System.out.println(secondPipe.size());
+					//System.out.println(secondPipe.size());
 					
 						//Set<RelationMention> uniqueRelationMentions = new HashSet<>(relationMentions);
 					    //secondPipe.add(uniqueRelationMentions);
@@ -206,13 +221,15 @@ public class ISE {
 				
 				
 				}
-
 			}
+			System.out.println("elations extracted from this website:"+count+" (overall:"+countTotal+")");
+			count=0;
 				
-		}*/
+		}
 		
-		// For Debug Only
-		List<List<RelationMention>> secondPipe = new ArrayList<>();
+		
+		 /*// For Debug Only
+		//List<List<RelationMention>> secondPipe = new ArrayList<>();
 		try{
 			String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
 			Annotation document2 = new Annotation(sentence);
@@ -220,30 +237,45 @@ public class ISE {
 			rew.annotate(document2);
 			for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
 				System.out.println("For sentence " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
-				for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
-					String ner = token.get(NamedEntityTagAnnotation.class);
-					if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
+				//for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
+				//	String ner = token.get(NamedEntityTagAnnotation.class);
+					//if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
 				
 						List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
 						secondPipe.add(rls);
-					}
-				}
+					//}
+				//}
 			}		
 		}catch(Exception e){
 			System.out.println("Something wrong !!!!");
 		}
 		for(int i= 0; i<secondPipe.size(); i++){
 			List<RelationMention> sub = secondPipe.get(i);
-			System.out.println(sub.size());
+			for(RelationMention test: sub){
+			System.out.println("type:"+test.getType());
+			System.out.println("fullvalue:"+test.getFullValue());
+			System.out.println("type:"+test.getTypeProbabilities());
+			Counter<String> probs = test.getTypeProbabilities();
+			System.out.println("default:"+probs.getCount("_NR"));
+
+			List<EntityMention> rst = test.getEntityMentionArgs();
+			for(EntityMention en: rst){
+				System.out.println("entityType:"+en.getType());
+				System.out.println("entityValue:"+en.getValue());
+			}
+
+			//System.out.println(sub.size());
 			//for(RelationMention rl: sub){
 				//	System.out.println(rl.toString());
-				//}
+			}	//}
 			
 			
-		}
+		}*/
 
-	
-}
+	}
+
+
+
 	// Search for url
 	 public static ArrayList<String> Search(String engineKey, String apiKey, int top, String query) throws IOException{
 		 
@@ -261,9 +293,8 @@ public class ISE {
 		              for(Result result: resultList){
 		              	urlResult.add(result.getFormattedUrl());
 		              }
-		       }
+		          }
 		          return urlResult;
 		      }
-	
-
 }
+
