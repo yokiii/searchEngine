@@ -1,6 +1,7 @@
-package adbProject2;
-
 import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -9,9 +10,12 @@ import java.util.Set;
 import java.util.Map.Entry;
 import java.util.Properties;
 
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
 
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -37,6 +41,16 @@ import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.trees.TreeCoreAnnotations.TreeAnnotation;
 import edu.stanford.nlp.util.CoreMap;
+
+
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.Parser;
+import org.apache.tika.parser.html.HtmlParser;
+import org.apache.tika.parser.txt.TXTParser;
+import org.apache.tika.sax.BodyContentHandler;
+import org.xml.sax.ContentHandler;
 
 public class ISE {
 	public static void main(String[] args) throws Exception {
@@ -109,12 +123,41 @@ public class ISE {
 			System.out.println(urlResult.get(i));
 		}
 		
+		// Apache Tika version
 		List<String> plainTextResult = new ArrayList<>();
 		for(int i = 0; i<urlResult.size(); i++){
 			try{
+			InputStream input = new URL(urlResult.get(i)).openStream();
+	        ContentHandler handler = new BodyContentHandler();
+	        Metadata metadata = new Metadata();
+	        new HtmlParser().parse(input, handler, metadata, new ParseContext());
+	        String plainText = handler.toString();
+	        plainTextResult.add(plainText);
+			}catch (IOException e){
+				System.out.println(urlResult.get(i) + "cannot be extracted");
+				continue;
+			}
+		}
+		
+		//for(int j = 0; j<plainTextResult.get(0); j++){
+		//	System.out.println(plainTextResult.get(0));
+		//}
+		
+		/* Jsoup Version
+		//List<String> plainTextResult = new ArrayList<>();
+		List<List<String>> plainTextResult = new ArrayList<>();
+		for(int i = 0; i<urlResult.size(); i++){
+			try{
 			Document doc = Jsoup.connect(urlResult.get(i)).timeout(1000).get();
-			String text = doc.body().text();  /// Mark : Body or Text
-			plainTextResult.add(text);
+			Elements paragraphs = doc.select("p");
+			//String text = doc.body().text();  /// Mark : Body or Text
+			List<String> curr = new ArrayList<>();
+			for(Element p: paragraphs){
+				String text = p.text();
+				curr.add(text);
+			}
+			plainTextResult.add(curr);
+			
 			url.add(urlResult.get(i));
 			}catch (IOException e){
 				System.out.println(urlResult.get(i) + "cannot be extracted");
@@ -123,11 +166,13 @@ public class ISE {
 			
 		}
 		
-		/*
-		for(int j = 0; j<plainTextResult.size(); j++){
-		System.out.println(plainTextResult.get(j));
+		
+		for(int j = 0; j<plainTextResult.get(0).size(); j++){
+			System.out.println(plainTextResult.get(0).get(j));
 		}
 		*/
+		
+		/*
 		
 		//Test of String input
 		Properties props = new Properties();
@@ -226,6 +271,7 @@ public class ISE {
 			count=0;
 				
 		}
+		*/
 		
 		
 		 /*// For Debug Only
@@ -257,13 +303,11 @@ public class ISE {
 			System.out.println("type:"+test.getTypeProbabilities());
 			Counter<String> probs = test.getTypeProbabilities();
 			System.out.println("default:"+probs.getCount("_NR"));
-
 			List<EntityMention> rst = test.getEntityMentionArgs();
 			for(EntityMention en: rst){
 				System.out.println("entityType:"+en.getType());
 				System.out.println("entityValue:"+en.getValue());
 			}
-
 			//System.out.println(sub.size());
 			//for(RelationMention rl: sub){
 				//	System.out.println(rl.toString());
