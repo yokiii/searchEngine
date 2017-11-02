@@ -50,6 +50,11 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.html.HtmlParser;
 import org.apache.tika.parser.txt.TXTParser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.apache.tika.sax.ToXMLContentHandler;
+import org.apache.tika.sax.XHTMLContentHandler;
+import org.apache.tika.sax.xpath.Matcher;
+import org.apache.tika.sax.xpath.MatchingContentHandler;
+import org.apache.tika.sax.xpath.XPathParser;
 import org.xml.sax.ContentHandler;
 
 public class ISE {
@@ -117,164 +122,34 @@ public class ISE {
 		
 		// Obtain top-10 Webpages for query q
 		ArrayList<String> urlResult = Search(engineKey, apiKey, 10, q);
-		ArrayList<String> url = new ArrayList<String>();
+
 
 		for(int i = 0; i< urlResult.size(); i++){
 			System.out.println(urlResult.get(i));
 		}
 		
-		// Apache Tika version
-		List<String> plainTextResult = new ArrayList<>();
-		for(int i = 0; i<urlResult.size(); i++){
-			try{
-			InputStream input = new URL(urlResult.get(i)).openStream();
-	        ContentHandler handler = new BodyContentHandler();
-	        Metadata metadata = new Metadata();
-	        new HtmlParser().parse(input, handler, metadata, new ParseContext());
-	        String plainText = handler.toString();
-	        plainTextResult.add(plainText);
-			}catch (IOException e){
-				System.out.println(urlResult.get(i) + "cannot be extracted");
-				continue;
-			}
+		//Extract Information from selected webpage
+		List<List<String>> plainTextResult = Extract(urlResult);
+		
+		//First Pipeline to filter the plainTextResult
+		List<List<String>> firstPipe = FirstPipeline(plainTextResult, urlResult, entities);
+		for(int i = 0; i<firstPipe.get(0).size(); i++){
+			System.out.println(firstPipe.get(0).get(i));
 		}
 		
-		//for(int j = 0; j<plainTextResult.get(0); j++){
-		//	System.out.println(plainTextResult.get(0));
-		//}
-		
-		/* Jsoup Version
-		//List<String> plainTextResult = new ArrayList<>();
-		List<List<String>> plainTextResult = new ArrayList<>();
-		for(int i = 0; i<urlResult.size(); i++){
-			try{
-			Document doc = Jsoup.connect(urlResult.get(i)).timeout(1000).get();
-			Elements paragraphs = doc.select("p");
-			//String text = doc.body().text();  /// Mark : Body or Text
-			List<String> curr = new ArrayList<>();
-			for(Element p: paragraphs){
-				String text = p.text();
-				curr.add(text);
-			}
-			plainTextResult.add(curr);
+		//Second Piepline to calculate
+		List<List<RelationMention>> secondPipe = SecondPipeline(firstPipe,type);
 			
-			url.add(urlResult.get(i));
-			}catch (IOException e){
-				System.out.println(urlResult.get(i) + "cannot be extracted");
-				continue;
-			}
-			
-		}
-		
-		
-		for(int j = 0; j<plainTextResult.get(0).size(); j++){
-			System.out.println(plainTextResult.get(0).get(j));
-		}
-		*/
-		
 		/*
-		
-		//Test of String input
-		Properties props = new Properties();
-		props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner");
-		StanfordCoreNLP pipeline1 = new StanfordCoreNLP(props);
-		
+		 // For Debug Only
 		Properties props1 = new Properties();
 		props1.setProperty("annotators", "tokenize, ssplit, pos, lemma, parse, ner");
 		props1.setProperty("parse.model", "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz");
 		props1.setProperty("ner.useSUTime", "0");
 		StanfordCoreNLP pipeline2 = new StanfordCoreNLP(props1);
 		RelationExtractorAnnotator rew = new RelationExtractorAnnotator(props1);
-		List<RelationMention> secondPipe = new ArrayList<RelationMention>();
-		
-		for(int j=0; j<plainTextResult.size();j++ ){
-			String text = plainTextResult.get(j);
-			System.out.println("Processing:"+url.get(j));
-			int count =0;
-			int countTotal=0;
-			//first pipeline
-			List<String> firstPipe = new ArrayList<String>();
-			Annotation document1 = new Annotation(text);
-			pipeline1.annotate(document1);
-			
-			for (CoreMap s : document1.get(CoreAnnotations.SentencesAnnotation.class)) {
-				for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
-						String ner = token.get(NamedEntityTagAnnotation.class);
-						System.out.println("For sentence "
-				                  + token.get(CoreAnnotations.TextAnnotation.class));
-				           System.out.println("Relation "
-				                   + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
-						if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
-							firstPipe.add(s.get(CoreAnnotations.TextAnnotation.class));	
-							System.out.println("satisfy entity requirement");      
-							break;	
-						}
-				  }
-			}
-			
-			if(firstPipe == null || firstPipe.size() == 0){
-				System.out.println("empty pipe");
-				
-			}else{
-				
-				for(int i = 0; i<firstPipe.size(); i++){
-					System.out.println(firstPipe.get(i));
-				}
-				
-			
-			//second pipeline
-				for(String str: firstPipe){
-					try{
-						String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
-						Annotation document2 = new Annotation(sentence);
-						pipeline2.annotate(document2);	
-						rew.annotate(document2);
-						for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
-							List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
-							for(RelationMention relation: rls){
-								if(relation.getType().equalsIgnoreCase(type)){
-									Counter<String> probs = relation.getTypeProbabilities();
-									Double confidence = probs.getCount(type);
-									if(confidence>=0){
-										System.out.println("=============EXTRACT RELATION===========");
-										System.out.println("SENTENCE: " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
-										List<EntityMention> rst = relation.getEntityMentionArgs();
-										for(EntityMention en: rst){
-											System.out.println("ENTITYTYPE:"+en.getType());
-											System.out.println("ENTITYVALUE:"+en.getValue());
-										}
-										System.out.println("=============END OF RELATION DESC===========");
-										secondPipe.add(relation);
-										count++;
-									}
-								}
-							}
-						}
-			
-					}catch(Exception e){
-						System.out.println("Something wrong !!!!");
-					}
-					//System.out.println(secondPipe.size());
-					
-						//Set<RelationMention> uniqueRelationMentions = new HashSet<>(relationMentions);
-					    //secondPipe.add(uniqueRelationMentions);
-					    //System.out.println("Extracted the following:");
-					    //for(RelationMention m: uniqueRelationMentions){
-					    //	System.out.println(m);
-					    //}
-					
-				
-				
-				}
-			}
-			System.out.println("elations extracted from this website:"+count+" (overall:"+countTotal+")");
-			count=0;
-				
-		}
-		*/
-		
-		
-		 /*// For Debug Only
+		List<List<RelationMention>> second = new ArrayList<>();
+		  
 		//List<List<RelationMention>> secondPipe = new ArrayList<>();
 		try{
 			String sentence = "In June 2006, Gates announced that he would be transitioning from full-time work at Microsoft to part-time work and full-time work at the Bill & Melinda Gates Foundation";
@@ -288,15 +163,15 @@ public class ISE {
 					//if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
 				
 						List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
-						secondPipe.add(rls);
+						second.add(rls);
 					//}
 				//}
 			}		
 		}catch(Exception e){
 			System.out.println("Something wrong !!!!");
 		}
-		for(int i= 0; i<secondPipe.size(); i++){
-			List<RelationMention> sub = secondPipe.get(i);
+		for(int i= 0; i<second.size(); i++){
+			List<RelationMention> sub = second.get(i);
 			for(RelationMention test: sub){
 			System.out.println("type:"+test.getType());
 			System.out.println("fullvalue:"+test.getFullValue());
@@ -314,8 +189,182 @@ public class ISE {
 			}	//}
 			
 			
-		}*/
+		}
+		*/
 
+	}
+	//Second pipelin
+	public static List<List<RelationMention>> SecondPipeline(List<List<String>> firstPipe, String type){
+		Properties props1 = new Properties();
+		props1.setProperty("annotators", "tokenize, ssplit, pos, lemma, parse, ner");
+		props1.setProperty("parse.model", "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz");
+		props1.setProperty("ner.useSUTime", "0");
+		StanfordCoreNLP pipeline2 = new StanfordCoreNLP(props1);
+		RelationExtractorAnnotator rew = new RelationExtractorAnnotator(props1);
+		
+		List<List<RelationMention>> secondPipe = new ArrayList<>();
+		
+		int count = 0;
+		for(int i = 0; i<firstPipe.size(); i++){
+			List<RelationMention> current = new ArrayList<>();
+			for(int j = 0; j<firstPipe.get(i).size(); j++){
+				try{
+					String sentence = firstPipe.get(i).get(j);
+					Annotation document2 = new Annotation(sentence);
+					pipeline2.annotate(document2);	
+					rew.annotate(document2);
+					for (CoreMap s : document2.get(CoreAnnotations.SentencesAnnotation.class)) {
+						List<RelationMention> rls = s.get(MachineReadingAnnotations.RelationMentionsAnnotation.class);
+						for(RelationMention relation: rls){
+							if(relation.getType().equalsIgnoreCase(type)){
+								Counter<String> probs = relation.getTypeProbabilities();
+								Double confidence = probs.getCount(type);
+								if(confidence>=0){
+									System.out.println("=============EXTRACT RELATION===========");
+									System.out.println("SENTENCE: " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
+									List<EntityMention> rst = relation.getEntityMentionArgs();
+									for(EntityMention en: rst){
+										System.out.println("ENTITYTYPE:"+en.getType());
+										System.out.println("ENTITYVALUE:"+en.getValue());
+									}
+									System.out.println("=============END OF RELATION DESC===========");
+									current.add(relation);
+									count++;
+								}
+								break;
+								
+							}
+							
+						}
+					}
+					
+					
+				}catch(Exception e){
+					System.out.println("Something wrong !!!!");
+				}
+			}
+			secondPipe.add(current);
+		}
+
+			//System.out.println(secondPipe.size());
+
+			
+	//System.out.println("elations extracted from this website:"+count);
+	return secondPipe;	
+	}
+	
+	//First piepeline
+	public static List<List<String>> FirstPipeline(List<List<String>> plainTextResult, ArrayList<String> urlResult, String[] entities){
+		Properties props = new Properties();
+		props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner");
+		StanfordCoreNLP pipeline1 = new StanfordCoreNLP(props);
+		List<List<String>> firstPipe = new ArrayList<>();
+		
+		for(int i = 0; i<plainTextResult.size(); i++){
+			System.out.println("Processing:"+urlResult.get(i));
+			List<String> current = new ArrayList<>();
+			for(int j = 0; j<plainTextResult.get(i).size(); j++){
+				String text =plainTextResult.get(i).get(j);
+				Annotation document1 = new Annotation(text);
+				pipeline1.annotate(document1);
+				for (CoreMap s : document1.get(CoreAnnotations.SentencesAnnotation.class)) {
+					for (CoreLabel token : s.get(CoreAnnotations.TokensAnnotation.class)) {
+							String ner = token.get(NamedEntityTagAnnotation.class);
+							//System.out.println("For sentence "
+					        //          + token.get(CoreAnnotations.TextAnnotation.class));
+					       // System.out.println("Relation "
+					       //            + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
+					        if(ner.equalsIgnoreCase(entities[0]) || ner.equalsIgnoreCase(entities[1])){
+									current.add(s.get(CoreAnnotations.TextAnnotation.class));
+									//System.out.println("For sentence "
+									  //                + token.get(CoreAnnotations.TextAnnotation.class));
+									//System.out.println("Relation "
+									//	                   + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
+									//System.out.println("satisfy entity requirement");      
+									break;	
+								}
+				
+					}
+				}
+			}
+			firstPipe.add(current);
+		}
+		return firstPipe;
+	}	
+		
+		
+	
+	// Extract Information from selected url
+	public static List<List<String>> Extract(ArrayList<String> urlResult){
+		/*
+		// Apache Tika version
+		List<String> plainTextResult = new ArrayList<>();
+		for(int i = 0; i<urlResult.size(); i++){
+			try{
+				/*
+			InputStream input = new URL(urlResult.get(i)).openStream();
+			ContentHandler handler = new BodyContentHandler();
+	        Metadata metadata = new Metadata();
+	        //AutoDetectParser parser = new AutoDetectParser();
+	        new HtmlParser().parse(input, handler, metadata, new ParseContext());
+	        String plainText = handler.toString();
+	        plainTextResult.add(plainText);
+	        
+				ContentHandler handler = new ToXMLContentHandler();;
+				//XPathParser xhtmlParser = new XPathParser("xhtml", XHTMLContentHandler.XHTML);
+		        //Matcher divContentMatcher = xhtmlParser.parse("/xhtml:html/xhtml:body/descendant::node()");
+		        //ContentHandler handler = new ToXMLContentHandler(divContentMatcher);
+		        AutoDetectParser parser = new AutoDetectParser();
+		        Metadata metadata = new Metadata();
+		        InputStream input = new URL(urlResult.get(i)).openStream();
+		        parser.parse(input, handler, metadata);
+		        plainTextResult.add(handler.toString().replaceAll("\\<.*?>",""));
+		        
+			}catch (IOException e){
+				System.out.println(urlResult.get(i) + "cannot be extracted");
+				continue;
+			}
+			
+		}
+
+		
+		//for(int j = 0; j<plainTextResult.get(0); j++){
+			System.out.println(plainTextResult.get(0));
+		//}
+			
+			*/
+		
+		
+		// Jsoup Version
+		//List<String> plainTextResult = new ArrayList<>();
+		List<List<String>> plainTextResult = new ArrayList<>();
+		for(int i = 0; i<urlResult.size(); i++){
+			try{
+			Document doc = Jsoup.connect(urlResult.get(i)).timeout(1000).get();
+			Elements paragraphs = doc.select("p");
+			//String text = doc.body().text();  /// Mark : Body or Text
+			List<String> curr = new ArrayList<>();
+			for(Element p: paragraphs){
+				String text = p.text().replaceAll("\\<.*?>","");
+				curr.add(text);
+			}
+			plainTextResult.add(curr);
+			
+			//url.add(urlResult.get(i));
+			}catch (IOException e){
+				System.out.println(urlResult.get(i) + "cannot be extracted");
+				continue;
+			}
+			
+		}
+		/*
+		//printing
+		for(int j = 0; j<plainTextResult.get(1).size(); j++){
+			System.out.println(plainTextResult.get(1).get(j));
+		}
+		*/
+		
+		return plainTextResult;
 	}
 
 
@@ -341,4 +390,3 @@ public class ISE {
 		          return urlResult;
 		      }
 }
-
