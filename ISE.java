@@ -1,11 +1,16 @@
+package adbProject2;
+
 import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -43,7 +48,7 @@ import edu.stanford.nlp.trees.TreeCoreAnnotations.TreeAnnotation;
 import edu.stanford.nlp.util.CoreMap;
 
 
-import org.apache.tika.metadata.Metadata;
+/*import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
@@ -54,10 +59,16 @@ import org.apache.tika.sax.ToXMLContentHandler;
 import org.apache.tika.sax.XHTMLContentHandler;
 import org.apache.tika.sax.xpath.Matcher;
 import org.apache.tika.sax.xpath.MatchingContentHandler;
-import org.apache.tika.sax.xpath.XPathParser;
+import org.apache.tika.sax.xpath.XPathParser;*/
 import org.xml.sax.ContentHandler;
 
 public class ISE {
+	static int total;
+	static int urlIndex;
+	static Map<String,Double> rstList; 
+
+	
+	static List<String> url = new ArrayList<String>();
 	public static void main(String[] args) throws Exception {
 		 //No.1 ---------------------------------parse argument----------------------------------
 		if(args.length != 6){
@@ -118,28 +129,70 @@ public class ISE {
 		}
 		
 		//Initialize X tuple set
-		Set<Entry<String, Double>> X = Collections.emptySet();
-		
+		//Set<Entry<String, Double>> X = Collections.emptySet();
+		int totals=0;
+		int round=0;
+		urlIndex=0;
+		rstList= new HashMap<String,Double>();
+		while(total<k){
+			round++;
+			System.out.println("========QUERY ROUND "+round+"=========="+"QUERY:"+q);
 		// Obtain top-10 Webpages for query q
-		ArrayList<String> urlResult = Search(engineKey, apiKey, 10, q);
+			ArrayList<String> urlResult = Search(engineKey, apiKey, 10, q);
+			HashMap<String,Double> rstList = new HashMap<>();
 
-
-		for(int i = 0; i< urlResult.size(); i++){
-			System.out.println(urlResult.get(i));
-		}
+			for(int i = 0; i< urlResult.size(); i++){
+				System.out.println(urlResult.get(i));
+			}
 		
 		//Extract Information from selected webpage
-		List<List<String>> plainTextResult = Extract(urlResult);
+			List<List<String>> plainTextResult = Extract(urlResult);
 		
 		//First Pipeline to filter the plainTextResult
-		List<List<String>> firstPipe = FirstPipeline(plainTextResult, urlResult, entities);
-		for(int i = 0; i<firstPipe.get(0).size(); i++){
-			System.out.println(firstPipe.get(0).get(i));
-		}
+			List<List<String>> firstPipe = FirstPipeline(plainTextResult, urlResult, entities);
+			for(int i = 0; i<firstPipe.get(0).size(); i++){
+				System.out.println(firstPipe.get(0).get(i));
+			}
 		
 		//Second Piepline to calculate
-		List<List<RelationMention>> secondPipe = SecondPipeline(firstPipe,type);
+			List<RelationMention> secondPipe = SecondPipeline(firstPipe,type,t,entities);
+			if(secondPipe.isEmpty()){
+				System.out.println("no more satisfied result,exiting...");
+				System.exit(0);
+			}
 			
+			Set<Entry<String, Double>> entries = rstList.entrySet();
+			Comparator<Entry<String, Double>> valueComparator = new Comparator<Entry<String, Double>>() {
+				@Override
+				public int compare(Entry<String, Double> o1, Entry<String, Double> o2) {
+	 				Double v1 = o1.getValue(); 
+	 				Double v2 = o2.getValue();
+	 				return v2.compareTo(v1);
+				} 
+			};
+			List<Entry<String, Double>> listOfEntries = new ArrayList<Entry<String, Double>>(entries);
+			Collections.sort(listOfEntries, valueComparator);
+			System.out.println("===========ALL RELATIONS============");
+			for(Entry<String,Double> ent: listOfEntries){
+				String[] values=((String) ent.getKey()).split(";");
+				Double confi = Math.round((double)ent.getValue()*100)/100.0;
+				System.out.println("RELATION TYPE:"+type);
+				System.out.println("CONFIDENCE:"+confi );
+				System.out.println("ENTITY #1"+values[0]);
+				System.out.println("ENTITY #2"+values[1]);
+				System.out.println("---------------------------------------------------");
+
+			}
+			totals=listOfEntries.size();
+			if(totals>=k){
+				System.out.println("Reached number of tuple goals, exiting...");
+				System.exit(1);
+			}
+			String[] nquery = listOfEntries.get(0).getKey().split(";");
+			String first = nquery[0].split("(")[0];
+			String second = nquery[1].split("(")[0];
+			q = first+" "+second;
+		}
 		/*
 		 // For Debug Only
 		Properties props1 = new Properties();
@@ -194,7 +247,7 @@ public class ISE {
 
 	}
 	//Second pipelin
-	public static List<List<RelationMention>> SecondPipeline(List<List<String>> firstPipe, String type){
+	public static List<RelationMention> SecondPipeline(List<List<String>> firstPipe, String type,double t,String[] entities){
 		Properties props1 = new Properties();
 		props1.setProperty("annotators", "tokenize, ssplit, pos, lemma, parse, ner");
 		props1.setProperty("parse.model", "edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz");
@@ -202,11 +255,14 @@ public class ISE {
 		StanfordCoreNLP pipeline2 = new StanfordCoreNLP(props1);
 		RelationExtractorAnnotator rew = new RelationExtractorAnnotator(props1);
 		
-		List<List<RelationMention>> secondPipe = new ArrayList<>();
+		List<RelationMention> secondPipe = new ArrayList<>();
 		
-		int count = 0;
+		
 		for(int i = 0; i<firstPipe.size(); i++){
-			List<RelationMention> current = new ArrayList<>();
+			int count = 0;
+			System.out.println("processing:" +url.get(urlIndex));
+			urlIndex++;
+			//List<RelationMention> current = new ArrayList<>();
 			for(int j = 0; j<firstPipe.get(i).size(); j++){
 				try{
 					String sentence = firstPipe.get(i).get(j);
@@ -219,31 +275,59 @@ public class ISE {
 							if(relation.getType().equalsIgnoreCase(type)){
 								Counter<String> probs = relation.getTypeProbabilities();
 								Double confidence = probs.getCount(type);
-								if(confidence>=0){
-									System.out.println("=============EXTRACT RELATION===========");
-									System.out.println("SENTENCE: " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
 									List<EntityMention> rst = relation.getEntityMentionArgs();
+									List<List<String>> type1 = new ArrayList<List<String>>();
 									for(EntityMention en: rst){
-										System.out.println("ENTITYTYPE:"+en.getType());
-										System.out.println("ENTITYVALUE:"+en.getValue());
+										List<String> temp = new ArrayList<String>();
+										temp.add(en.getType());
+										temp.add(en.getValue());
+										type1.add(temp);
+										//System.out.println("ENTITYTYPE:"+en.getType());
+										//System.out.println("ENTITYVALUE:"+en.getValue());
 									}
-									System.out.println("=============END OF RELATION DESC===========");
-									current.add(relation);
-									count++;
-								}
-								break;
-								
+										if((type1.get(0).get(0).equalsIgnoreCase(entities[0])||type1.get(0).get(0).equalsIgnoreCase(entities[1]))&&(type1.get(1).get(0).equalsIgnoreCase(entities[0])||type1.get(1).get(0).equalsIgnoreCase(entities[1]))){
+											System.out.println("Summary:"+relation.toString());
+											System.out.println("=============EXTRACT RELATION===========");
+											System.out.println("SENTENCE: " + s.get(CoreAnnotations.TextAnnotation.class)); // for test
+											System.out.println("Relation:"+relation.getType());
+											System.out.println("Confidence Score:"+confidence);
+											for(int z=0;z<type1.size();z++){
+												System.out.println("ENTITYTYPE:"+type1.get(z).get(0));	
+												System.out.println("ENTITYVALUE:"+type1.get(z).get(1));	
+												
+											}
+											System.out.println("=============END OF RELATION DESC===========");
+											if(confidence>=t){
+												String keyCheck = type1.get(0).get(1).toLowerCase()+"("+type1.get(0).get(0)+")"+";"+type1.get(1).get(1).toLowerCase()+"("+type1.get(1).get(0)+")";
+												if(!rstList.containsKey(keyCheck)){
+													System.out.println("ADD TO HASHMAP");
+													rstList.put(keyCheck, confidence);
+													secondPipe.add(relation);
+												}
+												else{
+													Double conf = rstList.get(keyCheck);
+													if(confidence>conf){
+														System.out.println("ADD TO HASHMAP");
+														rstList.put(keyCheck,confidence);
+														secondPipe.add(relation);
+													}
+												}
+												
+												count++;
+												break;
+											}
+									
+										}
 							}
-							
 						}
 					}
-					
-					
 				}catch(Exception e){
 					System.out.println("Something wrong !!!!");
 				}
 			}
-			secondPipe.add(current);
+			total+=count;
+			System.out.println("sentence extracted:"+count+" overall:"+total);
+			//secondPipe.add(current);
 		}
 
 			//System.out.println(secondPipe.size());
@@ -261,7 +345,7 @@ public class ISE {
 		List<List<String>> firstPipe = new ArrayList<>();
 		
 		for(int i = 0; i<plainTextResult.size(); i++){
-			System.out.println("Processing:"+urlResult.get(i));
+			//System.out.println("Processing:"+urlResult.get(i));
 			List<String> current = new ArrayList<>();
 			for(int j = 0; j<plainTextResult.get(i).size(); j++){
 				String text =plainTextResult.get(i).get(j);
@@ -281,10 +365,11 @@ public class ISE {
 									//System.out.println("Relation "
 									//	                   + token.get(CoreAnnotations.NamedEntityTagAnnotation.class));
 									//System.out.println("satisfy entity requirement");      
-									break;	
+									break;
 								}
 				
 					}
+					
 				}
 			}
 			firstPipe.add(current);
@@ -326,7 +411,6 @@ public class ISE {
 			}
 			
 		}
-
 		
 		//for(int j = 0; j<plainTextResult.get(0); j++){
 			System.out.println(plainTextResult.get(0));
@@ -339,8 +423,9 @@ public class ISE {
 		//List<String> plainTextResult = new ArrayList<>();
 		List<List<String>> plainTextResult = new ArrayList<>();
 		for(int i = 0; i<urlResult.size(); i++){
+			if(url.contains(urlResult.get(i))) continue;
 			try{
-			Document doc = Jsoup.connect(urlResult.get(i)).timeout(1000).get();
+			Document doc = Jsoup.connect(urlResult.get(i)).timeout(10000).get();
 			Elements paragraphs = doc.select("p");
 			//String text = doc.body().text();  /// Mark : Body or Text
 			List<String> curr = new ArrayList<>();
@@ -349,7 +434,7 @@ public class ISE {
 				curr.add(text);
 			}
 			plainTextResult.add(curr);
-			
+			url.add(urlResult.get(i));
 			//url.add(urlResult.get(i));
 			}catch (IOException e){
 				System.out.println(urlResult.get(i) + "cannot be extracted");
@@ -384,7 +469,11 @@ public class ISE {
 		      resultList = results.getItems();
 		          if(resultList != null && resultList.size() > 0){
 		              for(Result result: resultList){
-		              	urlResult.add(result.getFormattedUrl());
+		            	String s = "";
+		              	String urlTest = result.getFormattedUrl();
+		              	if(urlTest.startsWith("www")) s+="https://";
+		              	s+=urlTest;
+		              	urlResult.add(s);
 		              }
 		          }
 		          return urlResult;
