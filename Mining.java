@@ -18,7 +18,6 @@ public class Mining {
 	private static List<List<String>> process_itemsets;
 	private static List<Double> process_support;
 	private static Map<List<String>,Double> itemsets_support_map;
-	private static Map<List<String>, Double> freqItems = new HashMap<>();
 	public static void main(String[] args) throws Exception {
 		if(args.length != 3){
 			System.out.println("Usage: <csv file name> <min_sup> <min_conf>");
@@ -64,26 +63,61 @@ public class Mining {
 		}
 		processing_itemsets(FirstItems,min_sup);
 		List<combo> combos = new ArrayList<>();
+		Map<String, Double> freqItems = new HashMap<>();
 		while (true) {
 			if (process_itemsets.size() == 0) break;
 			combo temp = new combo(process_itemsets,process_support,itemsets_support_map);
 			combos.add(temp);
 			for (int i = 0; i < process_itemsets.size(); i++) {
-				freqItems.put(process_itemsets.get(i), process_support.get(i));
+				StringBuilder sb = new StringBuilder();
+				sb.append("[");
+				for(String item: process_itemsets.get(i)){
+					sb.append(item);
+					sb.append(",");
+				}
+				sb.deleteCharAt(sb.length()-1);
+				sb.append("]");
+				sb.append(", ");
+				sb.append(process_support.get(i)*100+"%");
+				String itemstring = sb.toString();
+				freqItems.put(itemstring, process_support.get(i));
 			}
 			List<List<String>> nextRound = verify();
 			processing_itemsets(nextRound,min_sup);
 		}
 		
 		//Descending Order
-		List<Map.Entry<List<String>, Double>> mapL = new LinkedList<Map.Entry<List<String>, Double>>(freqItems.entrySet());
-		Collections.sort(mapL, new Comparator<Map.Entry<List<String>, Double>>(){
-			public int compare(Map.Entry<List<String>, Double> m1, Map.Entry<List<String>, Double> m2){
+		List<Map.Entry<String, Double>> mapL = new LinkedList<Map.Entry<String, Double>>(freqItems.entrySet());
+		Collections.sort(mapL, new Comparator<Map.Entry<String, Double>>(){
+			public int compare(Map.Entry<String, Double> m1, Map.Entry<String, Double> m2){
 				return m2.getValue().compareTo(m1.getValue());
 			}
 		});
-		List<List<String>> rules = associationRule(combos,min_conf);
 		
+		List<List<String>> rules = associationRule(combos,min_conf);
+		Map<String,Double> rst = new HashMap<>();
+		for(List<String> seg : rules) {
+			StringBuilder sb = new StringBuilder();
+			sb.append("[");
+			sb.append(seg.get(0));
+			sb.append("]");
+			sb.append(" => ");
+			sb.append("[");
+			sb.append(seg.get(1));
+			sb.append("]");
+			sb.append(" ");
+			Double conf = Double.parseDouble(seg.get(2));
+			Double supp = Double.parseDouble(seg.get(3));
+			sb.append("(Conf: "+ 100 * conf + "%, Supp:" + 100 * supp + "%)");
+			rst.put(sb.toString(), conf);
+		}
+		
+		List<Map.Entry<String, Double>> mapRule = new LinkedList<Map.Entry<String, Double>>(rst.entrySet());
+		Collections.sort(mapRule, new Comparator<Map.Entry<String, Double>>(){
+			public int compare(Map.Entry<String, Double> m1, Map.Entry<String, Double> m2){
+				return m2.getValue().compareTo(m1.getValue());
+			}
+		});
 		
 		
 		
@@ -102,8 +136,9 @@ public class Mining {
 					StringBuilder sb = new StringBuilder();
 					for(String s: temp){
 						sb.append(s);
-						sb.append(" ");
+						sb.append(",");
 					}
+					sb.deleteCharAt(sb.length()-1);
 					String imply = sb.toString().trim();
 					Double support2 = previous.mapping.get(temp);
 					if(support / support2 >= conf) {
@@ -219,11 +254,10 @@ public class Mining {
 		process_support = new ArrayList<Double>();
 		itemsets_support_map = new HashMap<List<String>,Double>();
 		for (List<String> item : Items) {
-			double c = counting(item);
-			/* Greater then or equal to */
-			if (c >= min_sup) {
+			double count = counting(item);
+			if (count >= min_sup) {
 				process_itemsets.add(item);
-				process_support.add(c);
+				process_support.add(count);
 			}
 		}
 		for(int i = 0; i < process_itemsets.size(); i++)
@@ -231,12 +265,15 @@ public class Mining {
 	}
 	
 	public static Double counting(List<String> item){
-		Set<String> set = new HashSet<String>();
-		for (String t : item) 
-			set.add(t);
 		double count = 0;
-		for (Set<String> itemset : supportCount)
+		Set<String> set = new HashSet<String>();
+		for (String t : item){ 
+			set.add(t);
+		}
+		
+		for (Set<String> itemset : supportCount){
 			if(itemset.containsAll(set)) count++;
+		}
 		count = count / supportCount.size();
 		return count;
 		
