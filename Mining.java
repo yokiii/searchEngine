@@ -1,10 +1,13 @@
-package pkg;
+
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,7 +19,7 @@ public class Mining {
 	private static List<List<String>> process_itemsets;
 	private static List<Double> process_support;
 	private static Map<List<String>,Double> itemsets_support_map;
-	private static Map<List<String>, Double> freqItems;
+	private static Map<List<String>, Double> freqItems = new HashMap<>();
 	public static void main(String[] args) throws Exception {
 		if(args.length != 3){
 			System.out.println("Usage: <csv file name> <min_sup> <min_conf>");
@@ -72,6 +75,15 @@ public class Mining {
 			List<List<String>> nextRound = verify();
 			processing_itemsets(nextRound,min_sup);
 		}
+		
+		//Descending Order
+		List<Map.Entry<List<String>, Double>> mapL = new LinkedList<Map.Entry<List<String>, Double>>(freqItems.entrySet());
+		Collections.sort(mapL, new Comparator<Map.Entry<List<String>, Double>>(){
+			public int compare(Map.Entry<List<String>, Double> m1, Map.Entry<List<String>, Double> m2){
+				return m2.getValue().compareTo(m1.getValue());
+			}
+		});
+		
 		
 	
 	}
