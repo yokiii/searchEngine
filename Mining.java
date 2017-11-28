@@ -1,4 +1,4 @@
-
+package pkg;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class Mining {
-	private static List<combo> combos = new ArrayList<>();
 	private static List<Set<String>> supportCount=new ArrayList<>();
 	private static Set<String> itemset = new HashSet<>();
 	private static List<List<String>> process_itemsets;
@@ -64,7 +63,7 @@ public class Mining {
 			FirstItems.add(cur);
 		}
 		processing_itemsets(FirstItems,min_sup);
-		
+		List<combo> combos = new ArrayList<>();
 		while (true) {
 			if (process_itemsets.size() == 0) break;
 			combo temp = new combo(process_itemsets,process_support,itemsets_support_map);
@@ -83,9 +82,44 @@ public class Mining {
 				return m2.getValue().compareTo(m1.getValue());
 			}
 		});
+		List<List<String>> rules = associationRule(combos,min_conf);
+		
+		
 		
 		
 	
+	}
+	public static List<List<String>> associationRule (List<combo> c, double conf) {
+		List<List<String>> rules = new ArrayList<List<String>>();
+		for (int i = 1;i < c.size(); i++) {
+			combo previous = c.get(i - 1);
+			combo cur = c.get(i);
+			for (List<String> itemset : cur.items) {
+				double support = cur.mapping.get(itemset);
+				for(int k = 0; k < itemset.size(); k++) {
+					List<String> temp = new ArrayList<String>(itemset);
+					temp.remove(k);
+					StringBuilder sb = new StringBuilder();
+					for(String s: temp){
+						sb.append(s);
+						sb.append(" ");
+					}
+					String imply = sb.toString().trim();
+					Double support2 = previous.mapping.get(temp);
+					if(support / support2 >= conf) {
+						Double sup = support / support2;
+						String supString = sup.toString();
+						List<String> tempRule = new ArrayList<String>();
+						tempRule.add(imply);
+						tempRule.add(itemset.get(k));
+						tempRule.add(supString);
+						tempRule.add(cur.mapping.get(itemset).toString());
+						rules.add(tempRule);
+					}
+				}
+			}
+		}
+		return rules;
 	}
 	
 	public static List<List<String>> verify(){
