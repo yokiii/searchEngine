@@ -2,6 +2,9 @@ package pkg;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -66,23 +69,27 @@ public class Mining {
 		Map<String, Double> freqItems = new HashMap<>();
 		while (true) {
 			if (process_itemsets.size() == 0) break;
-			combo temp = new combo(process_itemsets,process_support,itemsets_support_map);
+			List<List<String>> process_itemsets_cur = new ArrayList<>(process_itemsets);
+			List<Double> process_support_cur = new ArrayList<>(process_support);
+			Map<List<String>,Double> itemsets_supp_map_cur= new HashMap<>(itemsets_support_map); 
+			combo temp = new combo(process_itemsets_cur,process_support_cur,itemsets_supp_map_cur);
 			combos.add(temp);
-			for (int i = 0; i < process_itemsets.size(); i++) {
+			for (int i = 0; i < process_itemsets_cur.size(); i++) {
 				StringBuilder sb = new StringBuilder();
 				sb.append("[");
-				for(String item: process_itemsets.get(i)){
+				for(String item: process_itemsets_cur.get(i)){
 					sb.append(item);
 					sb.append(",");
 				}
 				sb.deleteCharAt(sb.length()-1);
 				sb.append("]");
 				sb.append(", ");
-				sb.append(process_support.get(i)*100+"%");
+				sb.append(process_support_cur.get(i)*100+"%");
 				String itemstring = sb.toString();
-				freqItems.put(itemstring, process_support.get(i));
+				System.out.println(itemstring);
+				freqItems.put(itemstring, process_support_cur.get(i));
 			}
-			List<List<String>> nextRound = verify();
+			List<List<String>> nextRound = verify(process_itemsets_cur);
 			processing_itemsets(nextRound,min_sup);
 		}
 		
@@ -109,6 +116,7 @@ public class Mining {
 			Double conf = Double.parseDouble(seg.get(2));
 			Double supp = Double.parseDouble(seg.get(3));
 			sb.append("(Conf: "+ 100 * conf + "%, Supp:" + 100 * supp + "%)");
+			System.out.println(sb.toString());
 			rst.put(sb.toString(), conf);
 		}
 		
@@ -119,6 +127,21 @@ public class Mining {
 			}
 		});
 		
+		//output file
+		try{
+			PrintWriter writer = new PrintWriter(new FileWriter("output.txt"));
+			writer.println("==Frequent itemsets (min_sup=" + 100 * min_sup + "%)");
+			for (Map.Entry<String, Double> freq : mapL) {
+				writer.println(freq.getKey());
+			}
+			writer.println("\n==High-confidence association rules (min_conf=" + 100 * min_conf + "%)");
+			for (Map.Entry<String, Double> asso : mapRule) {
+				writer.println(asso.getKey());
+			}
+			writer.close();
+		} catch (Exception e){
+			System.out.println(e);
+		}
 		
 		
 	
@@ -157,10 +180,10 @@ public class Mining {
 		return rules;
 	}
 	
-	public static List<List<String>> verify(){
+	public static List<List<String>> verify(List<List<String>> process_itemsets_this){
 		List<List<String>> rst = new ArrayList<List<String>>();
-		for (List<String> item1 : process_itemsets){
-			for (List<String> item2 : process_itemsets) {
+		for (List<String> item1 : process_itemsets_this){
+			for (List<String> item2 : process_itemsets_this) {
 				boolean check = true;
 				int n = item1.size() - 1;
 				if (item1.get(n).compareTo(item2.get(n)) < 0) {
@@ -173,7 +196,7 @@ public class Mining {
 					if (check) {
 						List<String> temp = new ArrayList<String>(item1);
 						temp.add(item2.get(n));
-						if (checking(temp)) {
+						if (checking(temp,process_itemsets_this)) {
 							rst.add(temp);
 						}
 					}
@@ -184,13 +207,13 @@ public class Mining {
 		
 		return rst;
 	}
-	public static boolean checking(List<String> stringset){
+	public static boolean checking(List<String> stringset,List<List<String>> process_itemsets_this){
 		boolean res = true;
 		for (int i = 0; i < stringset.size(); i++) {
 			ArrayList<String> temp = new ArrayList<String>(stringset);
 			temp.remove(i);
 			boolean exist = false;
-			for (List<String> item : process_itemsets){
+			for (List<String> item : process_itemsets_this){
 				boolean equal = true;
 				for (int j = 0;j < item.size(); j++)
 					if (!temp.get(j).equals(item.get(j))) {
