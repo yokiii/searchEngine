@@ -1,3 +1,5 @@
+package pkg;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -64,11 +66,16 @@ public class Mining {
 			cur.add(item);
 			FirstItems.add(cur);
 		}
+		//first round
 		processing_itemsets(FirstItems,min_sup);
 		List<combo> combos = new ArrayList<>();
 		Map<String, Double> freqItems = new HashMap<>();
-		while (true) {
-			if (process_itemsets.size() == 0) break;
+		boolean next = true;
+		while (next) {
+			if (process_itemsets.size() == 0){
+				next=false;
+				break;
+			}
 			List<List<String>> process_itemsets_cur = new ArrayList<>(process_itemsets);
 			List<Double> process_support_cur = new ArrayList<>(process_support);
 			Map<List<String>,Double> itemsets_supp_map_cur= new HashMap<>(itemsets_support_map); 
@@ -134,7 +141,7 @@ public class Mining {
 			for (Map.Entry<String, Double> freq : mapL) {
 				writer.println(freq.getKey());
 			}
-			writer.println("\n==High-confidence association rules (min_conf=" + 100 * min_conf + "%)");
+			writer.println("==High-confidence association rules (min_conf=" + 100 * min_conf + "%)");
 			for (Map.Entry<String, Double> asso : mapRule) {
 				writer.println(asso.getKey());
 			}
@@ -149,8 +156,8 @@ public class Mining {
 	public static List<List<String>> associationRule (List<combo> c, double conf) {
 		List<List<String>> rules = new ArrayList<List<String>>();
 		for (int i = 1;i < c.size(); i++) {
-			combo previous = c.get(i - 1);
 			combo cur = c.get(i);
+			combo pre = c.get(i - 1);
 			for (List<String> itemset : cur.items) {
 				double support = cur.mapping.get(itemset);
 				for(int k = 0; k < itemset.size(); k++) {
@@ -163,9 +170,9 @@ public class Mining {
 					}
 					sb.deleteCharAt(sb.length()-1);
 					String imply = sb.toString().trim();
-					Double support2 = previous.mapping.get(temp);
-					if(support / support2 >= conf) {
-						Double sup = support / support2;
+					Double support2 = pre.mapping.get(temp);
+					Double sup = support / support2;
+					if(sup >= conf) {
 						String supString = sup.toString();
 						List<String> tempRule = new ArrayList<String>();
 						tempRule.add(imply);
@@ -193,10 +200,11 @@ public class Mining {
 							break;
 						}
 					}
-					if (check) {
+					if (check==true) {
 						List<String> temp = new ArrayList<String>(item1);
 						temp.add(item2.get(n));
-						if (checking(temp,process_itemsets_this)) {
+						boolean unique = checking(temp,process_itemsets_this);
+						if (unique==true) {
 							rst.add(temp);
 						}
 					}
@@ -208,11 +216,11 @@ public class Mining {
 		return rst;
 	}
 	public static boolean checking(List<String> stringset,List<List<String>> process_itemsets_this){
-		boolean res = true;
+		boolean rst = true;
 		for (int i = 0; i < stringset.size(); i++) {
+			boolean exist = false;
 			ArrayList<String> temp = new ArrayList<String>(stringset);
 			temp.remove(i);
-			boolean exist = false;
 			for (List<String> item : process_itemsets_this){
 				boolean equal = true;
 				for (int j = 0;j < item.size(); j++)
@@ -220,27 +228,29 @@ public class Mining {
 						equal = false;
 						break;
 					}
-				if (equal) exist = true;
+				if (equal==true){
+					exist = true;
+				}
 			}
-			if (!exist) {
-				res = false;
+			if (exist==false) {
+				rst = false;
 				break;
 			}
 		}
 		
-		return res;
+		return rst;
 	}
 	
-	public static void printing(List<List<String>> l){
-		int n = l.size();
-		for(int i = 0; i< n; i++){
-			for(int j = 0; j< l.get(i).size(); j++){
-				System.out.print(l.get(i).get(j) + " ");
-			}
-			System.out.println();	 
-		}
+	//public static void printing(List<List<String>> l){
+		//int n = l.size();
+		//for(int i = 0; i< n; i++){
+		//	for(int j = 0; j< l.get(i).size(); j++){
+		//		System.out.print(l.get(i).get(j) + " ");
+			//}
+			//System.out.println();	 
+	//	}
 		
-	}
+//	}
 	
 	public static List<List<String>> parsing(String fileName){
 		List<List<String>> result = new ArrayList<>();
@@ -253,16 +263,17 @@ public class Mining {
 				if(count == 1){
 					continue;
 				}
-				String[] column = currentLine.split(",");
-				List<String> l = new ArrayList<>();
-				for(String c: column){
-					if(c.length() == 0 || c.equals("")){
+				String[] row = currentLine.split(",");
+				List<String> col = new ArrayList<>();
+				for(int i=0;i<row.length;i++){
+					//if(i==8||i==9||i==15||i==16) continue;
+					if(row[i].length() == 0 || row[i].equals("")){
 						continue;
 					}else{
-						l.add(c);
+						col.add(row[i]);
 					}
 				}
-				result.add(l);
+				result.add(col);
 			}
 
 				br.close();
@@ -283,11 +294,9 @@ public class Mining {
 			}else{
 				process_itemsets.add(Items.get(i));
 				process_support.add(value);
+				itemsets_support_map.put(Items.get(i), value);
 			}
 		}
-
-		for(int i = 0; i < process_itemsets.size(); i++)
-			itemsets_support_map.put(process_itemsets.get(i), process_support.get(i));
 	}
 	
 	
@@ -297,18 +306,14 @@ public class Mining {
 		for(int i = 0; i< item.size(); i++){
 			current_set.add(item.get(i));
 		}
-	
 		for (Set<String> s : supportCount){
 			if(s.containsAll(current_set)) {
 				value++;
 			}
 		}
-		return value / supportCount.size();
-		
-		
+		Double rst = value/supportCount.size();
+		return rst;	
 	}
-
-
 }
 class combo{
 	List<List<String>> items;
