@@ -1,5 +1,3 @@
-package pkg;
-
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -46,7 +44,9 @@ public class Mining {
 		
 		// parsing CSV file 
 		List<List<String>> parsingList = parsing(fileName);
+		
 		//printing(parsingList);
+		
 		//organize data
 		List<List<String>> FirstItems = new ArrayList<List<String>>();
 
@@ -264,10 +264,10 @@ public class Mining {
 				}
 				result.add(l);
 			}
-		//	if(br != null){
+
 				br.close();
-		//	}
 		} catch (Exception e){
+			System.out.println(e);
 			
 		}
 		return result;
@@ -276,29 +276,35 @@ public class Mining {
 		process_itemsets = new ArrayList<List<String>>();
 		process_support = new ArrayList<Double>();
 		itemsets_support_map = new HashMap<List<String>,Double>();
-		for (List<String> item : Items) {
-			double count = counting(item);
-			if (count >= min_sup) {
-				process_itemsets.add(item);
-				process_support.add(count);
+		for(int i = 0; i< Items.size(); i++){
+			double value = calculate(Items.get(i));
+			if (value < min_sup) {
+				continue;
+			}else{
+				process_itemsets.add(Items.get(i));
+				process_support.add(value);
 			}
 		}
+
 		for(int i = 0; i < process_itemsets.size(); i++)
 			itemsets_support_map.put(process_itemsets.get(i), process_support.get(i));
 	}
 	
-	public static Double counting(List<String> item){
-		double count = 0;
-		Set<String> set = new HashSet<String>();
-		for (String t : item){ 
-			set.add(t);
+	
+	public static Double calculate(List<String> item){
+		double value = 0;
+		Set<String> current_set = new HashSet<String>();
+		for(int i = 0; i< item.size(); i++){
+			current_set.add(item.get(i));
 		}
+	
+		for (Set<String> s : supportCount){
+			if(s.containsAll(current_set)) {
+				value++;
+			}
+		}
+		return value / supportCount.size();
 		
-		for (Set<String> itemset : supportCount){
-			if(itemset.containsAll(set)) count++;
-		}
-		count = count / supportCount.size();
-		return count;
 		
 	}
 
