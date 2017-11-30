@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -14,6 +15,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVRecord;
 
 public class Mining {
 	private static List<Set<String>> supportCount=new ArrayList<>();
@@ -252,6 +256,7 @@ public class Mining {
 		
 //	}
 	
+	/*
 	public static List<List<String>> parsing(String fileName){
 		List<List<String>> result = new ArrayList<>();
 		try{
@@ -283,6 +288,21 @@ public class Mining {
 		}
 		return result;
 	}
+	*/
+	
+	private static List<List<String>> parsing(String csvPath) throws IOException {
+        List<List<String>> results = new ArrayList<List<String>>();
+        Reader in = new FileReader(csvPath);
+        Iterable<CSVRecord> records = CSVFormat.RFC4180.parse(in);
+        for (CSVRecord record : records) {
+            List<String> basket = new ArrayList<String>();
+            for (int i = 0; i < record.size(); i++) {
+                basket.add(record.get(i));
+            }
+            results.add(basket);
+        }
+        return results;
+    }
 	public static void processing_itemsets(List<List<String>> Items,Double min_sup){
 		process_itemsets = new ArrayList<List<String>>();
 		process_support = new ArrayList<Double>();
